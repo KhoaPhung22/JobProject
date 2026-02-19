@@ -23,11 +23,11 @@ def main():
     url = "https://jsearch.p.rapidapi.com/search"
 
     querystring = {
-        "query": "Data jobs in Canada",
-        "page": "2",
-        "num_pages": "2",
+        "query": "Computer Science Data jobs in Canada",
+        "page": "1",
+        "num_pages": "1",
         "country": "CA",
-        "date_posted": "month",
+        "date_posted": "year",
         "employment_types": "FULLTIME, CONTRACTOR, PARTTIME, INTERN"
     }
 
