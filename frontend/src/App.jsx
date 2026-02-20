@@ -37,7 +37,8 @@ function App() {
       if (jobType) params.append('type', jobType)
       if (isRemote !== 'all') params.append('remote', isRemote === 'true')
 
-      const response = await fetch(`http://127.0.0.1:8000/jobs?${params.toString()}`)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      const response = await fetch(`${apiUrl}/jobs?${params.toString()}`)
       if (!response.ok) throw new Error('Failed to fetch jobs')
       const data = await response.json()
       setJobs(data.jobs || [])
@@ -51,7 +52,8 @@ function App() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true)
-      const response = await fetch('http://127.0.0.1:8000/analytics')
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      const response = await fetch(`${apiUrl}/analytics`)
       if (!response.ok) throw new Error('Failed to fetch analytics')
       const data = await response.json()
       setAnalyticsData(data)

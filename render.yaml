@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: linkedin-job-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python backend/main.py
+    envVars:
+      - key: RAPIDAPI_KEY
+        sync: false # Set manually in Render dashboard
+      - key: PORT
+        value: 8000
+    disk:
+      name: jobs-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        value: /data/jobs.db
+
+  - type: cron
+    name: linkedin-job-scraper
+    env: python
+    schedule: "0 0 * * *" # Every day at midnight
+    buildCommand: pip install -r requirements.txt
+    startCommand: python Linkedin_scaped_bot.py
+    envVars:
+      - key: RAPIDAPI_KEY
+        sync: false

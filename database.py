@@ -1,7 +1,9 @@
 import sqlite3
 import os
 
-DB_NAME = "jobs.db"
+# Handle Render persistent storage or local dev
+DB_PATH = os.environ.get("DATABASE_URL", os.path.join(os.path.dirname(__file__), "jobs.db"))
+DB_NAME = DB_PATH
 
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)

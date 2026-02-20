@@ -17,7 +17,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_NAME = os.path.join(os.path.dirname(__file__), "..", "jobs.db")
+# Handle Render persistent storage or local dev
+DB_PATH = os.environ.get("DATABASE_URL", os.path.join(os.path.dirname(__file__), "..", "jobs.db"))
+DB_NAME = DB_PATH
 
 def get_db_connection():
     conn = sqlite3.connect(DB_NAME)
@@ -94,7 +96,6 @@ def get_analytics():
     emp_types_list = [{"type": name, "count": int(count)} for name, count in emp_types.items()]
     #Number of job related to Computer
     number_computer_jobs_df = df[df['title'].str.contains('Computer', case=False, na=False)]
-    
     # Calculate jobs by day for the line chart
     jobs_by_day = pd.to_datetime(df['posted_at']).dt.date.astype(str).value_counts().sort_index().to_dict()
     number_of_jobs_by_days = [{"name": date, "count": int(count)} for date, count in jobs_by_day.items()]
@@ -117,4 +118,5 @@ def get_analytics():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
