@@ -9,13 +9,12 @@ services:
         sync: false # Set manually in Render dashboard
       - key: PORT
         value: 8000
+      - key: DATABASE_URL
+        value: /data/jobs.db
     disk:
       name: jobs-data
       mountPath: /data
       sizeGB: 1
-    envVars:
-      - key: DATABASE_URL
-        value: /data/jobs.db
 
   - type: cron
     name: linkedin-job-scraper
