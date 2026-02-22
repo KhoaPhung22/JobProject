@@ -16,6 +16,13 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Defensive fix: Remove literal brackets if the user accidentally included them from templates
+# such as [YOUR-PASSWORD], which causes parsing errors.
+if "[" in DATABASE_URL and "]" in DATABASE_URL:
+    import re
+    # Matches patterns like :[password]@ and replaces with :password@
+    DATABASE_URL = re.sub(r':\[(.*?)\]@', r':\1@', DATABASE_URL)
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
