@@ -4,6 +4,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert
 from datetime import datetime
+import re
+import urllib.parse
 
 # Database connection URL
 # Default to SQLite for local development if DATABASE_URL is not set
@@ -17,11 +19,17 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Defensive fix: Remove literal brackets if the user accidentally included them from templates
-# such as [YOUR-PASSWORD], which causes parsing errors.
+# such as [YOUR-PASSWORD], and handle passwords with special characters like '@'.
 if "[" in DATABASE_URL and "]" in DATABASE_URL:
-    import re
-    # Matches patterns like :[password]@ and replaces with :password@
     DATABASE_URL = re.sub(r':\[(.*?)\]@', r':\1@', DATABASE_URL)
+
+if DATABASE_URL.count('@') > 1:
+    scheme, rest = DATABASE_URL.split('://', 1)
+    auth, host = rest.rsplit('@', 1)
+    if ':' in auth:
+        user, password = auth.split(':', 1)
+        # URL encode the password to handle special characters correctly
+        DATABASE_URL = f"{scheme}://{user}:{urllib.parse.quote_plus(password)}@{host}"
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
