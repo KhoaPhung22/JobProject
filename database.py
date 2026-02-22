@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine, Column, Text, Boolean, DateTime, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.dialects.postgresql import INSERT
+from sqlalchemy.dialects.postgresql import insert
 from datetime import datetime
 
 # Database connection URL
@@ -59,7 +59,7 @@ def upsert_job(job_data):
                 posted_at = None
 
         # Prepare values for PostgreSQL-style upsert or SQLAlchemy core
-        stmt = INSERT(Job).values(
+        stmt = insert(Job).values(
             id=job_data['id'],
             title=job_data['title'],
             employer=job_data['employer'],
