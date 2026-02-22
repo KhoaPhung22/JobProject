@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Briefcase, MapPin, Globe, Clock, Search, BarChart2, Filter } from 'lucide-react'
+import { Briefcase, MapPin, Globe, Clock, Search, BarChart2, Filter, LogIn, UserPlus } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import Login from './components/Login'
+import Register from './components/Register'
 
 function App() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [view, setView] = useState('board') // 'board' or 'analytics'
   const [analyticsData, setAnalyticsData] = useState(null)
+  const locationPath = useLocation()
 
   // Filter States
   const [search, setSearch] = useState('')
@@ -22,10 +25,10 @@ function App() {
   }, [search, location, jobType, isRemote])
 
   useEffect(() => {
-    if (view === 'analytics') {
+    if (locationPath.pathname === '/analytics') {
       fetchAnalytics()
     }
-  }, [view])
+  }, [locationPath.pathname])
 
   const fetchJobs = async () => {
     try {
@@ -151,7 +154,6 @@ function App() {
   )
 
   const renderAnalytics = () => {
-    console.log(analyticsData)
     if (!analyticsData && loading) return (
       <div className="loading-container">
         <div className="spinner"></div>
@@ -183,7 +185,6 @@ function App() {
             <div className="stat-value">{analyticsData.top_cities.length}</div>
             <div className="stat-label" style={{ fontSize: '0.9rem' }}>Global footprint</div>
           </div>
-          {/* Number of job posted in the last 24 hours */}
           <div className="stat-card">
             <div className="stat-label">Job posted in last 24 hours</div>
             <div className="stat-value">{analyticsData.number_of_jobs_today}</div>
@@ -248,11 +249,8 @@ function App() {
             </h3>
             <div style={{ height: '300px', width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
-                {/* 1. Changed BarChart to LineChart and removed layout="vertical" */}
                 <LineChart data={analyticsData.number_of_jobs_by_days} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-
-                  {/* 2. Swapped XAxis to be the Category (City Name) */}
                   <XAxis
                     dataKey="name"
                     stroke="#94a3b8"
@@ -260,21 +258,16 @@ function App() {
                     tickLine={false}
                     axisLine={false}
                   />
-
-                  {/* 3. Swapped YAxis to be the Number (Count) */}
                   <YAxis
                     stroke="#94a3b8"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                   />
-
                   <Tooltip
                     contentStyle={{ backgroundColor: 'var(--bg-color)', border: '1px solid var(--card-border)', borderRadius: '1rem' }}
                     itemStyle={{ color: 'var(--primary)' }}
                   />
-
-                  {/* 4. Changed Bar to Line with styling properties */}
                   <Line
                     type="monotone"
                     dataKey="count"
@@ -289,7 +282,6 @@ function App() {
           </div>
         </div>
 
-
         <div className="chart-placeholder" style={{ marginTop: '2rem' }}>
           <div style={{ textAlign: 'center' }}>
             <BarChart2 size={48} style={{ marginBottom: '1rem', color: 'var(--primary)' }} />
@@ -301,20 +293,36 @@ function App() {
     )
   }
 
+  const isAuthPage = locationPath.pathname === '/login' || locationPath.pathname === '/register'
+
   return (
     <div className="container">
       <header>
-        <nav>
-          <a className={`nav-link ${view === 'board' ? 'active' : ''}`} onClick={() => setView('board')}>Job Board</a>
-          <a className={`nav-link ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>Analytics</a>
+        <nav style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '2rem' }}>
+            <Link to="/" className={`nav-link ${locationPath.pathname === '/' ? 'active' : ''}`}>Job Board</Link>
+            <Link to="/analytics" className={`nav-link ${locationPath.pathname === '/analytics' ? 'active' : ''}`}>Analytics</Link>
+          </div>
+          <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+            <Link to="/login" className={`nav-link ${locationPath.pathname === '/login' ? 'active' : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <LogIn size={18} /> Sign In
+            </Link>
+            <Link to="/register" className="apply-btn" style={{ marginTop: 0, padding: '0.6rem 1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <UserPlus size={18} /> Sign Up
+            </Link>
+          </div>
         </nav>
-        <h1>{view === 'board' ? 'Find Your Flow' : 'Market Insights'}</h1>
-        <p className="subtitle">
-          {view === 'board' ? 'Curated opportunities for top tech talent' : 'Real-time data from the current job market'}
-        </p>
+        {!isAuthPage && (
+          <>
+            <h1>{locationPath.pathname === '/' ? 'Find Your Flow' : 'Market Insights'}</h1>
+            <p className="subtitle">
+              {locationPath.pathname === '/' ? 'Curated opportunities for top tech talent' : 'Real-time data from the current job market'}
+            </p>
+          </>
+        )}
       </header>
 
-      {error ? (
+      {error && !isAuthPage ? (
         <div style={{ textAlign: 'center', color: '#f43f5e', padding: '4rem' }}>
           <p>Error: {error}</p>
           <button onClick={fetchJobs} className="apply-btn" style={{ marginTop: '1rem', width: 'auto', padding: '0.5rem 2rem' }}>
@@ -322,7 +330,12 @@ function App() {
           </button>
         </div>
       ) : (
-        view === 'board' ? renderBoard() : renderAnalytics()
+        <Routes>
+          <Route path="/" element={renderBoard()} />
+          <Route path="/analytics" element={renderAnalytics()} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+        </Routes>
       )}
     </div>
   )

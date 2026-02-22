@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
-import sqlite3
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
 import os
 import pandas as pd
 from datetime import datetime
-
+from database import SessionLocal, Job, init_db
 
 app = FastAPI()
 
@@ -17,14 +18,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Handle Render persistent storage or local dev
-DB_PATH = os.environ.get("DATABASE_URL", os.path.join(os.path.dirname(__file__), "..", "jobs.db"))
-DB_NAME = DB_PATH
+# Dependency to get DB session
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Initialize database on startup
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 @app.get("/")
 def read_root():
@@ -35,52 +40,81 @@ def get_jobs(
     search: str = Query(None, description="Search term for title or description"),
     location: str = Query(None, description="Filter by city, state, or country"),
     remote: bool = Query(None, description="Filter by remote jobs"),
-    type: str = Query(None, description="Filter by employment type")
+    type: str = Query(None, description="Filter by employment type"),
+    db: Session = Depends(get_db)
 ):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    query = "SELECT * FROM jobs WHERE 1=1"
-    params = []
+    query = db.query(Job)
     
     if search:
-        query += " AND (title LIKE ? OR description LIKE ? OR employer LIKE ?)"
         search_term = f"%{search}%"
-        params.extend([search_term, search_term, search_term])
+        query = query.filter(or_(
+            Job.title.ilike(search_term),
+            Job.description.ilike(search_term),
+            Job.employer.ilike(search_term)
+        ))
         
     if location:
-        query += " AND (city LIKE ? OR state LIKE ? OR country LIKE ?)"
         loc_term = f"%{location}%"
-        params.extend([loc_term, loc_term, loc_term])
+        query = query.filter(or_(
+            Job.city.ilike(loc_term),
+            Job.state.ilike(loc_term),
+            Job.country.ilike(loc_term)
+        ))
         
     if remote is not None:
-        query += " AND is_remote = ?"
-        params.append(remote)
+        query = query.filter(Job.is_remote == remote)
         
     if type:
-        query += " AND employment_type LIKE ?"
-        params.append(f"%{type}%")
+        query = query.filter(Job.employment_type.ilike(f"%{type}%"))
     
-    cursor.execute(query, params)
-    jobs = [dict(row) for row in cursor.fetchall()]
-    conn.close()
+    jobs_list = query.all()
     
-    return {"count": len(jobs), "jobs": jobs}
+    return {
+        "count": len(jobs_list),
+        "jobs": [
+            {
+                "id": j.id,
+                "title": j.title,
+                "employer": j.employer,
+                "logo": j.logo,
+                "city": j.city,
+                "state": j.state,
+                "country": j.country,
+                "description": j.description,
+                "apply_link": j.apply_link,
+                "is_remote": j.is_remote,
+                "employment_type": j.employment_type,
+                "posted_at": j.posted_at,
+            } for j in jobs_list
+        ]
+    }
 
 @app.get("/analytics")
-def get_analytics():
-    conn = get_db_connection()
-    df = pd.read_sql_query("SELECT title,posted_at,city, state, country, is_remote, employment_type FROM jobs", conn)
-    print(df)
-    conn.close()
+def get_analytics(db: Session = Depends(get_db)):
+    # Using pandas for complex analytics as before, but fetching via SQLAlchemy
+    jobs_query = db.query(Job).all()
     
-    if df.empty:
+    if not jobs_query:
         return {
             "total_jobs": 0,
             "remote_percent": 0,
             "top_cities": [],
             "employment_types": []
         }
+    
+    # Convert to DataFrame
+    data = []
+    for j in jobs_query:
+        data.append({
+            "title": j.title,
+            "posted_at": j.posted_at,
+            "city": j.city,
+            "state": j.state,
+            "country": j.country,
+            "is_remote": j.is_remote,
+            "employment_type": j.employment_type
+        })
+    df = pd.DataFrame(data)
     
     # Calculate stats
     total_jobs = len(df)
@@ -94,25 +128,26 @@ def get_analytics():
     # Employment Types
     emp_types = df['employment_type'].value_counts().to_dict()
     emp_types_list = [{"type": name, "count": int(count)} for name, count in emp_types.items()]
-    #Number of job related to Computer
+    
+    # Number of job related to Computer
     number_computer_jobs_df = df[df['title'].str.contains('Computer', case=False, na=False)]
-    # Calculate jobs by day for the line chart
-    jobs_by_day = pd.to_datetime(df['posted_at']).dt.date.astype(str).value_counts().sort_index().to_dict()
+    
+    # Calculate jobs by day
+    df['posted_date'] = pd.to_datetime(df['posted_at']).dt.date
+    jobs_by_day = df['posted_date'].astype(str).value_counts().sort_index().to_dict()
     number_of_jobs_by_days = [{"name": date, "count": int(count)} for date, count in jobs_by_day.items()]
     
-    # Calculate jobs today for the stat card
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    number_of_jobs_today = jobs_by_day.get(today_str, 0)
-    
-    print(f"Jobs today ({today_str}): {number_of_jobs_today}")
+    # Calculate jobs today
+    today_str = datetime.now().date().isoformat()
+    number_of_jobs_today = int(jobs_by_day.get(today_str, 0))
     
     return {
         "total_jobs": int(total_jobs),
         "remote_percent": round(float(remote_percent), 1),
         "top_cities": top_cities_list,
         "employment_types": emp_types_list,
-        "number_computer_jobs": int(number_computer_jobs_df.shape[0]),
-        "number_of_jobs_today": int(number_of_jobs_today),
+        "number_computer_jobs": int(len(number_computer_jobs_df)),
+        "number_of_jobs_today": number_of_jobs_today,
         "number_of_jobs_by_days": number_of_jobs_by_days
     }
 
